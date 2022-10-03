@@ -1,22 +1,18 @@
 const path = require('path')
 
-function localPackage(packageName){
-    return path.join(__dirname, './node_modules/', packageName)
-}
-
 module.exports = function createBabelConfig(additionalPlugins = []) {
     return function (api) {
         api.cache(true)
         return {
             presets: [
                 [
-                    localPackage('@babel/preset-react'),
+                    '@babel/preset-react',
                     {
                         'runtime': 'automatic'
                     }
                 ],
                 [
-                    localPackage('@babel/preset-env'),
+                    '@babel/preset-env',
                     {
                         corejs: '3.25',
                         useBuiltIns: 'entry',
@@ -33,7 +29,7 @@ module.exports = function createBabelConfig(additionalPlugins = []) {
                 ]
             ],
             plugins: [
-                localPackage('@babel/plugin-syntax-dynamic-import'),
+                '@babel/plugin-syntax-dynamic-import',
                 ...additionalPlugins
             ]
         }

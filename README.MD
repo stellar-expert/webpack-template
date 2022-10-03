@@ -62,11 +62,24 @@ Add the following two script entries to the project's `package.json`
 
 ```json
 {
+  ...
   "scripts": {
-    "build": "node ./node_modules/@stellar-expert/webpack-template/node_modules/webpack/bin/webpack.js --mode=production --config ./webpack-config.js",
-    "dev-server": "node ./node_modules/@stellar-expert/webpack-template/node_modules/webpack/bin/webpack.js serve --mode development --config ./webpack-config.js",
+    "build": "webpack --mode=production --config ./webpack-config.js",
+    "dev-server": "webpack serve --mode development --config ./webpack-config.js"
+    ...
   }
+  ...
 }
+```
+
+#### PNPM support
+
+For this building system to properly work with `pnpm` package manager,
+it is required to create `.npmrc` file in the project root.
+
+```
+auto-install-peers=true
+shamefully-hoist=true
 ```
 
 ### Finding duplicates (optional)
