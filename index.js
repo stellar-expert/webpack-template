@@ -17,13 +17,10 @@ class WebpackConfigBuilder {
             define: {},
             projectRoot: defaultProjectRoot,
             publicPath: '/',
-            hashFileNames: true,
             gatherBundleStats: true,
             ...params
         }
-        if (!path.isAbsolute(this.params.outputPath)) {
-            this.params.outputPath = path.resolve(this.params.projectRoot, this.params.outputPath)
-        }
+        this.params.outputPath = this.ensureAbsolutePath(this.params.outputPath)
         Object.freeze(this.params)
     }
 
@@ -66,7 +63,8 @@ class WebpackConfigBuilder {
             entry: this.prepareEntries(),
             output: this.prepareOutput(),
             module: {
-                rules: this.prepareModuleRules()
+                rules: this.prepareModuleRules(),
+                noParse: /\.wasm$/
             },
             plugins: this.plugins,
             resolve: this.prepareResolveSection(),
@@ -86,12 +84,26 @@ class WebpackConfigBuilder {
     /**
      * @private
      */
+    ensureAbsolutePath(value) {
+        return path.isAbsolute(value) ?
+            value :
+            path.resolve(this.params.projectRoot, value)
+    }
+
+    /**
+     * @private
+     */
     prepareModuleRules() {
-        const {scss = {}} = this.params
+        const {scss = {}, inlineSvg} = this.params
         const rules = [
             {
                 test: /\.js?$/,
                 loader: 'babel-loader'
+            },
+            {
+                test: /\.wasm$/,
+                loader: 'base64-loader',
+                type: 'javascript/auto'
             }
         ]
         if (!scss.disabled) {
@@ -118,6 +130,13 @@ class WebpackConfigBuilder {
                         }
                     }
                 ]
+            })
+        }
+        if (inlineSvg) {
+            rules.push({
+                test: /\.svg$/,
+                loader: 'svg-inline-loader',
+                exclude: /node_modules/
             })
         }
         return rules
@@ -150,7 +169,10 @@ class WebpackConfigBuilder {
         if (entries instanceof Array) return entries
         const res = {}
         Object.entries(entries).map(([key, value]) => {
+            if (typeof value === 'string')
+                return this.ensureAbsolutePath(value)
             const {hashFileName, htmlTemplate, ...entry} = value
+            entry.import = this.ensureAbsolutePath(entry.import)
             res[key] = entry
         })
         return res
@@ -160,23 +182,21 @@ class WebpackConfigBuilder {
      * @private
      */
     prepareOutput() {
-        const {outputPath, publicPath, entries, hashFileNames} = this.params
-        const plainEntries = entries instanceof Array ?
+        const {outputPath, publicPath, entries} = this.params
+        const hashedEntries = entries instanceof Array ?
             [] :
             Object.entries(entries)
-                .filter(([_, entry]) => entry.hashFileName === false)
+                .filter(([_, entry]) => entry.hashFileName || entry.htmlTemplate && entry.hashFileName !== false)
                 .map(([key]) => key) //store separately entries with non-hashed output filename
         const res = {
             path: path.join(outputPath, publicPath),
             filename: pathData => {
-                if (!hashFileNames || plainEntries.includes(pathData.chunk.name))
+                if (!hashedEntries.includes(pathData.chunk.name))
                     return '[name].js'
                 return `${pathData.runtime}.${pathData.hash}.js`
             },
             chunkFilename: ({chunk}) => {
                 const name = chunk.name || chunk.id
-                if (!hashFileNames)
-                    return name + '.js'
                 return `${name}.${chunk.hash}.js`
             },
             publicPath,
@@ -202,6 +222,7 @@ class WebpackConfigBuilder {
             host: '0.0.0.0',
             port: 8080,
             https: true,
+            hot: false,
             static: {
                 directory: this.params.outputPath
             },
@@ -215,12 +236,18 @@ class WebpackConfigBuilder {
      * @private
      */
     initPlugins() {
+        const {staticFilesPath, ignoreCallback} = this.params
+        const copySource = (staticFilesPath instanceof Array ? staticFilesPath : []).map(p => this.ensureAbsolutePath(p))
         this.plugins = [
-            new webpack.IgnorePlugin({resourceRegExp: /ed25519/}),
+            new webpack.IgnorePlugin({
+                checkResource(resource, context) {
+                    if (/ed25519/.test(context)) return true
+                    if (ignoreCallback && ignoreCallback(resource, context)) return true
+                    return false
+                }
+            }),
             new CopyPlugin({
-                patterns: [
-                    path.join(this.params.projectRoot, this.params.staticFilesPath)
-                ]
+                patterns: copySource
             }),
             new webpack.ProvidePlugin({Buffer: ['buffer', 'Buffer']})
         ]
@@ -254,13 +281,13 @@ class WebpackConfigBuilder {
      * @private
      */
     prepareHtmlPlugin() {
-        const {projectRoot, entries} = this.params
+        const {entries} = this.params
         for (const [key, entry] of Object.entries(entries)) {
             if (entry.htmlTemplate) {
                 const filename = entry.htmlTemplate.split('/').pop()
                 this.plugins.push(new HtmlWebpackPlugin({
                     filename,
-                    template: path.join(projectRoot, './static-template/index.html'),
+                    template: this.ensureAbsolutePath(entry.htmlTemplate),
                     chunks: [key]
                 }))
             }
@@ -296,7 +323,7 @@ class WebpackConfigBuilder {
      */
     prepareCssExtractPlugin() {
         if (this.params.scss?.disabled) return
-        const format = this.params.hashFileNames ? '[name].[contenthash].css' : '[name].css'
+        const format = '[name].[contenthash].css' //this.params.hashFileNames ? '[name].[contenthash].css' : '[name].css'
         const MiniCssExtractPlugin = require('mini-css-extract-plugin')
         this.plugins.push(new MiniCssExtractPlugin({filename: format}))
     }
@@ -307,7 +334,7 @@ class WebpackConfigBuilder {
     prepareResolveSection() {
         return {
             symlinks: true, //important for PNPM
-            modules: [path.resolve(this.params.projectRoot, 'node_modules'), path.resolve(__dirname, 'node_modules'), 'node_modules'],
+            modules: [path.resolve(this.params.projectRoot, 'node_modules'), 'node_modules'],
             fallback: {
                 util: false,
                 http: false,
@@ -346,7 +373,8 @@ module.exports = {initWebpackConfig, createBabelConfig}
  * @property {{}} define? - Additional variables to be defined in the execution scope
  * @property {Boolean} sourcemap? - Generate source map (generated only in development mode by default)
  * @property {String} publicPath? - Relative client output path for built bundle ('/' by default)
- * @property {Boolean} hashFileNames? - Include content hash into file name (true by default)
+ * @property {Function} ignoreCallback? - Callback to use for ignoring packages bundled to the output
+ * @property {Boolean} inlineSvg? - Inline SVG resources
  * @property {Boolean} gatherBundleStats? - Generate bundle stats report on production builds (true by default)
  */
 
@@ -362,8 +390,8 @@ module.exports = {initWebpackConfig, createBabelConfig}
  * @property {String} import - Imported file path
  * @property {String} dependOn? - Name of the chunk on which this chunk depends
  * @property {Boolean} asyncChunks? - Create async chunk that is loaded on demand
- * @property {Boolean} hashFileName? - Include content hash into file name (true by default)
  * @property {String} htmlTemplate? - Path to html template used for the output (relative to the project root dir)
+ * @property {Boolean} hashFileName? - Include content hash into file name (false by default, true for entries with htmlTemplate)
  */
 
 /**

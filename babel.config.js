@@ -1,5 +1,3 @@
-const path = require('path')
-
 module.exports = function createBabelConfig(additionalPlugins = []) {
     return function (api) {
         api.cache(true)
