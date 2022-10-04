@@ -51,12 +51,15 @@ class WebpackConfigBuilder {
         console.log('mode=' + mode)
 
         //plugins
-        this.initPlugins()
-        this.prepareLoaderOptionsPlugin()
-        this.prepareDefinePlugin()
-        this.prepareHtmlPlugin()
-        this.prepareCssExtractPlugin()
-        this.prepareBundleAnalyzerPlugin()
+        this.plugins = []
+        this.initProvidePlugin()
+        this.initIgnorePlugin()
+        this.initLoaderOptionsPlugin()
+        this.initDefinePlugin()
+        this.initHtmlPlugin()
+        this.initCssExtractPlugin()
+        this.initCopyPlugin()
+        this.initBundleAnalyzerPlugin()
 
         const res = {
             mode,
@@ -235,28 +238,39 @@ class WebpackConfigBuilder {
     /**
      * @private
      */
-    initPlugins() {
-        const {staticFilesPath, ignoreCallback} = this.params
-        const copySource = (staticFilesPath instanceof Array ? staticFilesPath : []).map(p => this.ensureAbsolutePath(p))
-        this.plugins = [
-            new webpack.IgnorePlugin({
-                checkResource(resource, context) {
-                    if (/ed25519/.test(context)) return true
-                    if (ignoreCallback && ignoreCallback(resource, context)) return true
-                    return false
-                }
-            }),
-            new CopyPlugin({
-                patterns: copySource
-            }),
-            new webpack.ProvidePlugin({Buffer: ['buffer', 'Buffer']})
-        ]
+    initIgnorePlugin() {
+        const {ignoreCallback} = this.params
+        this.plugins.push(new webpack.IgnorePlugin({
+            checkResource(resource, context) {
+                if (/ed25519/.test(context)) return true
+                if (ignoreCallback && ignoreCallback(resource, context)) return true
+                return false
+            }
+        }))
     }
 
     /**
      * @private
      */
-    prepareLoaderOptionsPlugin() {
+    initProvidePlugin() {
+        this.plugins.push(new webpack.ProvidePlugin({Buffer: ['buffer', 'Buffer']}))
+    }
+
+    /**
+     * @private
+     */
+    initCopyPlugin() {
+        const {staticFilesPath, ignoreCallback} = this.params
+        if (!staticFilesPath) return
+        this.plugins.push(new CopyPlugin({
+            patterns: (staticFilesPath instanceof Array ? staticFilesPath : [staticFilesPath]).map(p => this.ensureAbsolutePath(p))
+        }))
+    }
+
+    /**
+     * @private
+     */
+    initLoaderOptionsPlugin() {
         if (!this.isProduction) return
         this.plugins.unshift(new webpack.LoaderOptionsPlugin({
             minimize: true,
@@ -268,7 +282,7 @@ class WebpackConfigBuilder {
     /**
      * @private
      */
-    prepareDefinePlugin() {
+    initDefinePlugin() {
         const {define = {}} = this.params
         const vars = {'process.env.NODE_ENV': JSON.stringify(this.mode)}
         for (const [key, value] of Object.entries(define)) {
@@ -280,7 +294,7 @@ class WebpackConfigBuilder {
     /**
      * @private
      */
-    prepareHtmlPlugin() {
+    initHtmlPlugin() {
         const {entries} = this.params
         for (const [key, entry] of Object.entries(entries)) {
             if (entry.htmlTemplate) {
@@ -298,7 +312,7 @@ class WebpackConfigBuilder {
     /**
      * @private
      */
-    prepareBundleAnalyzerPlugin() {
+    initBundleAnalyzerPlugin() {
         if (!this.isProduction || !this.params.gatherBundleStats) return
         const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin
         this.plugins.push(new BundleAnalyzerPlugin({
@@ -321,7 +335,7 @@ class WebpackConfigBuilder {
     /**
      * @private
      */
-    prepareCssExtractPlugin() {
+    initCssExtractPlugin() {
         if (this.params.scss?.disabled) return
         const format = '[name].[contenthash].css' //this.params.hashFileNames ? '[name].[contenthash].css' : '[name].css'
         const MiniCssExtractPlugin = require('mini-css-extract-plugin')
