@@ -169,15 +169,18 @@ class WebpackConfigBuilder {
      */
     prepareEntries() {
         const {entries} = this.params
-        if (entries instanceof Array) return entries
         const res = {}
         Object.entries(entries).map(([key, value]) => {
-            if (typeof value === 'string')
-                return this.ensureAbsolutePath(value)
+            if (typeof value === 'string') {
+                res[key] = this.ensureAbsolutePath(value)
+                return
+            }
             const {hashFileName, htmlTemplate, ...entry} = value
             entry.import = this.ensureAbsolutePath(entry.import)
             res[key] = entry
         })
+        if (!Object.keys(res).length)
+            console.error('No entries to process')
         return res
     }
 
