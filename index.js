@@ -221,18 +221,20 @@ class WebpackConfigBuilder {
      */
     prepareDevServerSection() {
         if (this.isProduction) return
+        const {devServer, outputPath} = this.params
+        if (!devServer) return
         return Object.assign({
             host: '0.0.0.0',
             port: 8080,
             https: true,
             hot: false,
             static: {
-                directory: this.params.outputPath
+                directory: outputPath
             },
             historyApiFallback: {
                 disableDotRule: true
             }
-        }, this.params.devServer)
+        }, devServer)
     }
 
     /**
@@ -262,8 +264,9 @@ class WebpackConfigBuilder {
     initCopyPlugin() {
         const {staticFilesPath, ignoreCallback} = this.params
         if (!staticFilesPath) return
+        const copyEntries = (staticFilesPath instanceof Array ? staticFilesPath : [staticFilesPath])
         this.plugins.push(new CopyPlugin({
-            patterns: (staticFilesPath instanceof Array ? staticFilesPath : [staticFilesPath]).map(p => this.ensureAbsolutePath(p))
+            patterns: copyEntries.map(p => typeof p === 'string' ? this.ensureAbsolutePath(p) : p)
         }))
     }
 
@@ -380,9 +383,9 @@ module.exports = {initWebpackConfig, createBabelConfig}
  * @typedef {{}} WebpackBuilderParams
  * @property {WebpackEntries} entries - Input entries
  * @property {String} outputPath - Output base path (absolute path)
- * @property {String} projectRoot - Project root directory
- * @property {String} staticFilesPath - Path to directory containing static files (relative to project root dir)
- * @property {DevServerProps} devServer - DevServer properties
+ * @property {String|String[]|{}[]} staticFilesPath - Path to directory containing static files (relative to project root dir)
+ * @property {String} projectRoot? - Project root directory
+ * @property {DevServerProps} devServer? - DevServer properties
  * @property {ScssProps} scss? - Rules of SCSS files parsing
  * @property {{}} define? - Additional variables to be defined in the execution scope
  * @property {Boolean} sourcemap? - Generate source map (generated only in development mode by default)
