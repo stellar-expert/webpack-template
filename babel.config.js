@@ -12,7 +12,7 @@ module.exports = function createBabelConfig(additionalPlugins = []) {
                 [
                     '@babel/preset-env',
                     {
-                        corejs: '3.25',
+                        corejs: '3.32',
                         useBuiltIns: 'entry',
                         //modules: false,
                         targets: {
@@ -27,7 +27,6 @@ module.exports = function createBabelConfig(additionalPlugins = []) {
                 ]
             ],
             plugins: [
-                '@babel/plugin-syntax-dynamic-import',
                 ...additionalPlugins
             ]
         }
