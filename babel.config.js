@@ -12,7 +12,7 @@ module.exports = function createBabelConfig(additionalPlugins = []) {
                 [
                     '@babel/preset-env',
                     {
-                        corejs: '3.32',
+                        corejs: '3.34',
                         useBuiltIns: 'entry',
                         //modules: false,
                         targets: {
@@ -21,7 +21,7 @@ module.exports = function createBabelConfig(additionalPlugins = []) {
                                 'not dead',
                                 'not op_mini all'
                             ],
-                            node: '16'
+                            node: '18'
                         }
                     }
                 ]
