@@ -5,7 +5,7 @@
 ### Installation
 
 ```shell
-npm i -D github:stellar-expert/webpack-template webpack-cli webpack-dev-server
+npm i -D @stellar-expert/webpack-template webpack-cli webpack-dev-server
 ```
 
 ### Usage
