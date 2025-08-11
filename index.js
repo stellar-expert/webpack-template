@@ -129,7 +129,7 @@ class WebpackConfigBuilder {
                         loader: 'sass-loader',
                         options: {
                             sourceMap: !this.isProduction,
-                            additionalData: scss.additionalData || undefined
+                            ...scss
                         }
                     }
                 ]
@@ -229,8 +229,10 @@ class WebpackConfigBuilder {
         return Object.assign({
             host: '0.0.0.0',
             port: 8080,
-            https: true,
             hot: false,
+            server: {
+                type: 'https'
+            },
             static: {
                 directory: outputPath
             },
